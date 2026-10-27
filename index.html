@@ -1,0 +1,747 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>BL-WHLS v4.0.7 — 摆烂批发机后台终端</title>
+<style>
+  /* ============ 基础重置 ============ */
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  /* ============ 页面容器 ============ */
+  body {
+    background: #0a0a0a;
+    height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Consolas', 'JetBrains Mono', 'Microsoft YaHei', monospace;
+    overflow: hidden;
+  }
+
+  /* ============ 终端窗口 ============ */
+  .terminal {
+    width: 920px;
+    height: 640px;
+    background: #0d140d;
+    border-radius: 8px;
+    box-shadow:
+      0 0 0 1px #2a4a2a,
+      0 0 60px rgba(0, 255, 70, 0.15),
+      inset 0 0 100px rgba(0, 255, 70, 0.03);
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ============ 顶部窗口栏 ============ */
+  .titlebar {
+    height: 32px;
+    background: linear-gradient(180deg, #1a2a1a 0%, #0d140d 100%);
+    border-bottom: 1px solid #2a4a2a;
+    display: flex;
+    align-items: center;
+    padding: 0 12px;
+    gap: 8px;
+  }
+  .win-btn {
+    width: 12px; height: 12px; border-radius: 50%;
+  }
+  .win-btn.r { background: #ff5f57; }
+  .win-btn.y { background: #febc2e; }
+  .win-btn.g { background: #28c840; }
+  .titlebar-title {
+    flex: 1;
+    text-align: center;
+    color: #4a8a4a;
+    font-size: 13px;
+    letter-spacing: 1px;
+    margin-right: 60px; /* 给右侧按钮留对称空间 */
+  }
+
+  /* ============ CRT 特效层 ============ */
+  .terminal::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      rgba(0, 0, 0, 0.15) 0px,
+      rgba(0, 0, 0, 0.15) 1px,
+      transparent 1px,
+      transparent 3px
+    );
+    pointer-events: none;
+    z-index: 10;
+  }
+  .terminal::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(
+      ellipse at center,
+      transparent 55%,
+      rgba(0, 0, 0, 0.55) 100%
+    );
+    pointer-events: none;
+    z-index: 11;
+  }
+
+  /* ============ 终端输出区 ============ */
+  .screen {
+    flex: 1;
+    padding: 16px 20px 8px 20px;
+    overflow-y: auto;
+    color: #33ff55;
+    font-size: 13px;
+    line-height: 1.55;
+    text-shadow: 0 0 3px rgba(51, 255, 85, 0.6);
+    position: relative;
+    z-index: 2;
+  }
+  .screen::-webkit-scrollbar { width: 6px; }
+  .screen::-webkit-scrollbar-track { background: transparent; }
+  .screen::-webkit-scrollbar-thumb { background: #2a4a2a; border-radius: 3px; }
+
+  /* 行级别样式 */
+  .line { white-space: pre-wrap; word-break: break-all; }
+  .ts   { color: #4a8a4a; }
+  .lvl  { font-weight: bold; display: inline-block; min-width: 50px; white-space: nowrap; }
+  .lvl-info    { color: #33ff55; }
+  .lvl-warn    { color: #ffcc33; text-shadow: 0 0 4px rgba(255, 204, 51, 0.6); }
+  .lvl-error   { color: #ff5555; text-shadow: 0 0 4px rgba(255, 85, 85, 0.6); }
+  .lvl-critical{ color: #ff3377; text-shadow: 0 0 6px rgba(255, 51, 119, 0.8); }
+  .lvl-debug   { color: #559977; }
+  .lvl-order   { color: #55aaff; text-shadow: 0 0 4px rgba(85, 170, 255, 0.5); }
+  .lvl-quote   { color: #aaffaa; }
+
+  /* 批发语录行 */
+  .quote-line {
+    color: #aaffcc;
+    padding-left: 12px;
+  }
+  .quote-line .tag {
+    color: #66cc88;
+    margin-right: 6px;
+  }
+
+  /* ============ 输入区 ============ */
+  .input-area {
+    height: 32px;
+    padding: 0 20px 4px 20px;
+    display: flex;
+    align-items: center;
+    color: #33ff55;
+    font-size: 13px;
+    position: relative;
+    z-index: 2;
+  }
+  .prompt { color: #55ff77; margin-right: 8px; }
+  .cursor {
+    display: inline-block;
+    width: 7px; height: 14px;
+    background: #33ff55;
+    animation: blink 1s step-end infinite;
+    vertical-align: middle;
+  }
+  @keyframes blink { 50% { background: transparent; } }
+
+  /* ============ 底部状态栏 ============ */
+  .statusbar {
+    height: 24px;
+    background: #111a11;
+    border-top: 1px solid #2a4a2a;
+    display: flex;
+    align-items: center;
+    padding: 0 16px;
+    font-size: 12px;
+    color: #4a8a4a;
+    gap: 24px;
+    position: relative;
+    z-index: 2;
+  }
+  .statusbar span { display: inline-flex; align-items: center; gap: 6px; }
+  .statusbar .dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: #33ff55;
+    animation: pulse 2s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+  .statusbar .highlight {
+    color: #88ff99;
+    font-weight: bold;
+  }
+
+  /* ============ 闪烁发光文字 ============ */
+  .glow {
+    animation: glow 2s ease-in-out infinite;
+  }
+  @keyframes glow {
+    0%, 100% { text-shadow: 0 0 3px rgba(51, 255, 85, 0.6); }
+    50% { text-shadow: 0 0 10px rgba(51, 255, 85, 1), 0 0 20px rgba(51, 255, 85, 0.5); }
+  }
+</style>
+</head>
+<body>
+<div class="terminal">
+  <!-- 顶部窗口栏 -->
+  <div class="titlebar">
+    <div class="win-btn r"></div>
+    <div class="win-btn y"></div>
+    <div class="win-btn g"></div>
+    <div class="titlebar-title">BL-WHLS v4.0.7 — BACKEND TERMINAL [pid: 28471]</div>
+  </div>
+
+  <!-- 输出屏幕 -->
+  <div class="screen" id="screen"></div>
+
+  <!-- 输入区 -->
+  <div class="input-area">
+    <span class="prompt">whls@bl:~$</span>
+    <input type="text" id="cmd" autofocus autocomplete="off"
+           style="background:transparent;border:0;outline:0;color:#33ff55;font-family:inherit;font-size:13px;flex:1;caret-color:#33ff55;text-shadow:0 0 3px rgba(51,255,85,.6);">
+  </div>
+
+  <!-- 底部状态栏 -->
+  <div class="statusbar">
+    <span><span class="dot"></span> SYSTEM ONLINE</span>
+    <span>BL-INDEX: <span class="highlight" id="blIndex">97.3%</span></span>
+    <span>TODAY SHIPPED: <span class="highlight" id="shippedCount">0</span></span>
+    <span>UPTIME: <span class="highlight" id="uptime">0h 0m</span></span>
+    <span>PID: 28471</span>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   摆烂批发机 — 后台终端核心脚本
+   ============================================================ */
+
+/* ------- 1. 摆烂内容库 ------- */
+
+// 系统模块名（带摆烂味）
+const MODULES = [
+  'BL-CORE', 'WHLS-ENGINE', 'ORDER-SYS', 'INV-MGR',
+  'DISPATCH', 'FACTORY', 'QC', 'SHIPPER',
+  'SCHEDULER', 'HEARTBEAT', 'CACHE', 'NET', 'WMS'
+];
+
+// ① 系统运行日志模板
+const SYS_LOGS = [
+  '摆烂核心模块加载完成，当前摆烂指数: {BL_INDEX}',
+  '摸鱼引擎 v3.14 就绪，今日摸鱼配额已下发',
+  '订单系统在线，待处理队列: {QUEUE} 单',
+  '库存巡检完成，充足，无需补货（其实永远充足）',
+  '调度器正常，正在派发摸鱼流水线任务...',
+  '心跳正常，稳定运行 {UPTIME}',
+  '摆烂语录缓存命中率 {CACHE}%',
+  '与摸鱼总局连接正常，通道畅通',
+  '今日摆烂配额已发放，总量 {QUOTA}',
+  '后台自检完成，所有模块状态: 摸鱼中',
+  '自动巡检: 生产线空闲率 {IDLE}%（符合预期）',
+  '负载均衡: 左侧摸鱼线 {L}%, 右侧摸鱼线 {R}%',
+  '配置热更新完成 — 新增规则: "周三下午默认摸鱼"',
+  'WMS 仓储管理正常: 在库 {STOCK} 件摆烂商品'
+];
+
+// ② 订单处理流程模板（一整条链）
+const ORDER_FLOW = [
+  { m: 'ORDER-SYS', t: '收到新订单 #{ID}' },
+  { m: 'ORDER-SYS', t: '明细: {DETAIL}' },
+  { m: 'DISPATCH',  t: '订单 #{ID} → 批发流水线' },
+  { m: 'FACTORY',   t: '流水线启动，产能拉满...' },
+  // 动态插入 N 条 "完工"
+  { m: 'QC',         t: '质检抽检完成，良品率 100%' },
+  { m: 'SHIPPER',    t: '打包完成，准备发货' },
+  { m: 'SHIPPER',    t: '订单 #{ID} 已发货，预计送达: 现在就到' },
+];
+
+// 摆烂批发品类 & 其下的语录内容
+const PRODUCT_LINES = {
+  '摸鱼理由': [
+    '今天不宜动，动了就是错',
+    '状态不佳需放空一下再回来',
+    '效率低不如不做，省得返工',
+    '世界那么大我想静一静',
+    '明天一定（一定明天一定）',
+    '身体发肤受之父母，不该劳累',
+    '我在等待一个更好的时机',
+    '摸鱼是为了更好地躺平',
+    '老板不在，效率为零（但心情极佳）',
+    '我不是摸鱼，我是在沉思',
+    '脑子今天没上班，我代为请假',
+    '努力不一定成功，但休息一定很舒服',
+  ],
+  '躺平宣言': [
+    '我不是没目标，我是目标在躺平',
+    '内卷尽头是摆烂，摆烂尽头是心安',
+    '卷不动了，先躺着',
+    '生活不止眼前的苟且，还有远方的瘫',
+    '我选择原地投降',
+    '躺平不是放弃，是战略性休整（无限期）',
+    '平躺着，就很舒服',
+    '人生苦短，不如先睡',
+  ],
+  '下班借口': [
+    '加班？加什么班，家不是还在吗',
+    '我家猫今天不太对劲，得回去看看',
+    '地铁要停运了，先走了各位',
+    '我妈喊我回家吃饭（第 847 次）',
+    '紧急状况: 沙发在召唤我',
+    '我约了一个很重要的人（我自己）',
+    '外面下雨了，正好也该下班了',
+  ],
+  '请假理由': [
+    '今天身体不适，具体是不想起床',
+    '心理状态需要紧急修复——方式: 躺着',
+    '家里突发状况: 猫需要我陪伴',
+    '有个重要的会要开——梦里的',
+    '今天不适宜上班，黄历写的',
+    '我的被子不放我走',
+    '眼睛睁不开，疑似感染了周一病毒',
+  ],
+  '拖延语录': [
+    '这件事急吗？不急，那明天再说',
+    'Deadline 是用来穿越的',
+    '我在酝酿，酝酿需要时间',
+    '明日复明日，明日何其多——对，就这么多',
+    '不急，先喝口水',
+    '我在等灵感，灵感也在等我——所以对等吧',
+    '最后一分钟的效率是平时的 10 倍',
+  ],
+  '摸鱼技巧': [
+    '假装很忙比真忙更累，但效果好',
+    '开会时眼神放空，手里转笔，心里放假',
+    '工位上堆文件=安全感',
+    '偶尔敲几下回车键，制造紧张感',
+    '假装接电话，走到窗边看看风景',
+    '喝一杯水可以用 20 分钟',
+  ],
+  '人生感悟': [
+    '努力不一定成功，但不努力一定很舒服',
+    '鱼和熊掌不可兼得，但摸鱼和饭可以',
+    '钱是赚不完的，但觉是睡不完的（悖论）',
+    '今天的摸鱼，是明天的精神支柱',
+    '工作是老板的，身体是自己的',
+    '成年人的世界没有容易二字——容易摸鱼',
+    '生活像弹簧，你硬它就软，你软它就更软',
+  ],
+};
+const CATEGORY_NAMES = Object.keys(PRODUCT_LINES);
+
+// ③ 库存变动模板
+const INV_LOGS = [
+  { t: 'INFO',  m: 'INV-MGR', tpl: '补货完成 — {CAT} +500, 当前: {NUM}' },
+  { t: 'INFO',  m: 'INV-MGR', tpl: '今日已出: {CAT} {NUM}' },
+  { t: 'INFO',  m: 'INV-MGR', tpl: '库存盘点: 在库 {TOTAL} 件，周转天数 -3（因为根本没人拿货）' },
+  { t: 'WARN',  m: 'INV-MGR', tpl: '"{CAT}" 仅剩 {NUM} 条，建议紧急补货（但不急）' },
+  { t: 'INFO',  m: 'INV-MGR', tpl: '{CAT} +1000, 补货到位' },
+];
+
+// ④ 警告 / 异常
+const WARN_LOGS = [
+  { t: 'WARN',    m: 'BL-CORE',  msg: '检测到外来"努力"信号，正在拦截...' },
+  { t: 'INFO',    m: 'BL-CORE',  msg: '拦截成功，已自动转化为"摸鱼"请求' },
+  { t: 'ERROR',   m: 'FACTORY',  msg: '生产线短暂卡顿 — 原因: 操作员也在摸鱼' },
+  { t: 'WARN',    m: 'HEARTBEAT',msg: '心跳频率偏低，系统可能也在摸鱼' },
+  { t: 'ERROR',   m: 'NET',      msg: '连接"上进"服务器失败，已切换"躺平"备用线路' },
+  { t: 'CRITICAL',m: 'SCHEDULER',msg: '检测到"周一"即将到来，紧急加大产能 300%' },
+  { t: 'WARN',    m: 'ORDER-SYS',msg: '订单 #{ID} 被自动取消 — 客户不够摆烂' },
+  { t: 'INFO',    m: 'BL-CORE',  msg: '安全扫描完成: 未发现任何"奋斗"痕迹' },
+  { t: 'WARN',    m: 'CACHE',    msg: '缓存清理: 删除了 42 条过于积极的语录' },
+];
+
+// ⑤ 内部碎碎念 / 彩蛋
+const DEBUG_TIPS = [
+  '程序员备注: 这条日志是凑数的，我也在摸鱼',
+  '内部消息: 老板今天不来，大家放心',
+  '偷偷说: 其实这个系统也没在认真跑',
+  '你知道吗？鱼和熊掌不可兼得，但摸鱼和饭可以',
+  'BL-WHLS 内部 bug #42: 有时真的会停工，但没人发现',
+  '运营备注: 用户在看吗？在的话多发两条语录',
+  '后台彩蛋: 输入 "help" 看看有什么命令',
+  '温馨提示: 下班时间到了哦（虽然系统不知道几点）',
+];
+
+
+/* ------- 2. 状态 & 工具函数 ------- */
+let orderCounter = 2847;  // 订单号起始
+let shippedCount = 0;     // 今日已批发量
+let startTime = Date.now();
+let autoRun = true;
+
+const screen = document.getElementById('screen');
+const cmdInput = document.getElementById('cmd');
+
+// 随机工具
+const rand = (a, b) => Math.floor(Math.random() * (b - a + 1)) + a;
+const pick = arr => arr[rand(0, arr.length - 1)];
+const pad = n => String(n).padStart(2, '0');
+
+// 格式化时间戳 [HH:MM:SS]
+function nowTs() {
+  const d = new Date();
+  return `[${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}]`;
+}
+
+// 格式化运行时长
+function fmtUptime() {
+  const s = Math.floor((Date.now() - startTime) / 1000);
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  return `${h}h ${m}m`;
+}
+
+// 格式化摆烂指数（在 92.0% - 99.9% 之间微微抖动）
+function fmtBLIndex() {
+  return (92 + Math.random() * 7.9).toFixed(1) + '%';
+}
+
+
+/* ------- 3. 输出行核心函数 ------- */
+
+// 输出一行带时间戳 + 级别 + 模块 的系统日志
+function printLine(level, module, content) {
+  const lvlClass = {
+    'INFO': 'lvl-info', 'WARN': 'lvl-warn',
+    'ERROR': 'lvl-error', 'CRITICAL': 'lvl-critical',
+    'DEBUG': 'lvl-debug', 'ORDER': 'lvl-order',
+  }[level] || 'lvl-info';
+
+  const div = document.createElement('div');
+  div.className = 'line';
+  div.innerHTML =
+    `<span class="ts">${nowTs()}</span> ` +
+    `<span class="lvl ${lvlClass}">[${level}]</span> ` +
+    `<span class="ts">${module}</span>: ${content}`;
+  screen.appendChild(div);
+  scrollBottom();
+}
+
+// 输出一条批发语录（特殊格式，无时间戳）
+function printQuote(category, text) {
+  const div = document.createElement('div');
+  div.className = 'line quote-line';
+  div.innerHTML = `<span class="tag">> [${category}]</span> ${text}`;
+  screen.appendChild(div);
+  scrollBottom();
+}
+
+// 输出用户命令
+function printCmd(text) {
+  const div = document.createElement('div');
+  div.className = 'line';
+  div.innerHTML = `<span style="color:#55ff77">whls@bl:~$</span> ${text}`;
+  screen.appendChild(div);
+  scrollBottom();
+}
+
+// 滚动到底
+function scrollBottom() {
+  screen.scrollTop = screen.scrollHeight;
+  // 限制最大行数，避免 DOM 无限增长
+  if (screen.children.length > 400) {
+    for (let i = 0; i < 50; i++) screen.removeChild(screen.firstChild);
+  }
+}
+
+// 更新状态栏
+function updateStatus() {
+  document.getElementById('blIndex').textContent = fmtBLIndex();
+  document.getElementById('shippedCount').textContent = shippedCount;
+  document.getElementById('uptime').textContent = fmtUptime();
+}
+
+
+/* ------- 4. 内容生成函数 ------- */
+
+// 系统运行日志
+function genSysLog() {
+  const mod = pick(MODULES);
+  const tpl = pick(SYS_LOGS);
+  let content = tpl
+    .replace('{BL_INDEX}', fmtBLIndex())
+    .replace('{QUEUE}', rand(10, 99))
+    .replace('{UPTIME}', fmtUptime())
+    .replace('{CACHE}', rand(70, 99))
+    .replace('{QUOTA}', rand(8000, 20000))
+    .replace('{IDLE}', rand(40, 90))
+    .replace('{L}', rand(20, 80))
+    .replace('{R}', rand(20, 80))
+    .replace('{STOCK}', rand(5000, 9999));
+  printLine('INFO', mod, content);
+}
+
+// 一条批发语录
+function genQuote() {
+  const cat = pick(CATEGORY_NAMES);
+  const text = pick(PRODUCT_LINES[cat]);
+  printQuote(cat, text);
+  shippedCount++;
+}
+
+// 一条完整订单流水线（10-16行）
+function genOrderFlow() {
+  const id = ++orderCounter;
+  // 订单明细: 随机 1-3 个品类，每个 3-8 条
+  const catCount = rand(1, 3);
+  const chosenCats = [];
+  for (let i = 0; i < catCount; i++) {
+    const c = pick(CATEGORY_NAMES);
+    if (!chosenCats.includes(c)) chosenCats.push(c);
+  }
+  const detail = chosenCats.map(c => `${c} x${rand(3, 8)}`).join(', ');
+  const totalQty = chosenCats.reduce((s, c) => {
+    // 重新随机一个数，让发货总量合理
+    return s + rand(3, 8);
+  }, 0);
+
+  // 订单头
+  printLine('ORDER', 'ORDER-SYS', `收到新订单 #${id}`);
+  printLine('INFO',  'ORDER-SYS', `明细: ${detail}`);
+  printLine('INFO',  'DISPATCH',  `订单 #${id} → 批发流水线`);
+  printLine('INFO',  'FACTORY',   `流水线启动，产能拉满...`);
+
+  // 每一行 "完工" 加一个小延迟，让流水线感更真实
+  let delay = 0;
+  chosenCats.forEach(cat => {
+    const qty = rand(3, 8);
+    for (let i = 1; i <= qty; i++) {
+      const text = pick(PRODUCT_LINES[cat]);
+      setTimeout(() => {
+        printLine('ORDER', 'FACTORY', `${cat} #${i}/${qty} 完工 — "${text}"`);
+        shippedCount++;
+      }, delay);
+      delay += rand(60, 160);
+    }
+  });
+
+  // 订单尾
+  setTimeout(() => {
+    printLine('INFO', 'QC',      `质检抽检 ${totalQty} 件，合格 ${totalQty} 件，良品率 100%`);
+    printLine('INFO', 'SHIPPER', `打包完成，共 ${totalQty} 件，准备发货`);
+    printLine('INFO', 'SHIPPER', `订单 #${id} 已发货，预计送达: 现在就到`);
+  }, delay + 100);
+}
+
+// 库存变动
+function genInvLog() {
+  const tplObj = pick(INV_LOGS);
+  const cat = pick(CATEGORY_NAMES);
+  let content = tplObj.tpl
+    .replace('{CAT}', cat)
+    .replace('{NUM}', rand(20, 5000))
+    .replace('{TOTAL}', rand(5000, 30000));
+  printLine(tplObj.t, tplObj.m, content);
+}
+
+// 警告 / 异常
+function genWarnLog() {
+  const obj = pick(WARN_LOGS);
+  const msg = obj.msg.replace('{ID}', ++orderCounter);
+  printLine(obj.t, obj.m, msg);
+}
+
+// 内部碎碎念
+function genDebugTip() {
+  printLine('DEBUG', 'BL-WHLS/INTERNAL', pick(DEBUG_TIPS));
+}
+
+
+/* ------- 5. 自动调度核心 ------- */
+
+// 决定下一条输出什么（概率分布）
+function pickNextAction() {
+  const r = Math.random();
+  if (r < 0.35) return 'SYS';     // 35% 系统日志
+  if (r < 0.60) return 'QUOTE';   // 25% 批发语录
+  if (r < 0.72) return 'INV';     // 12% 库存变动
+  if (r < 0.85) return 'WARN';    // 13% 警告异常
+  if (r < 0.94) return 'SYS';     // 又 9% 系统日志
+  return 'DEBUG';                  // 6% 碎碎念
+}
+
+// 下一个调度 tick
+function scheduleNext() {
+  if (!autoRun) return;
+
+  const action = pickNextAction();
+
+  if (action === 'SYS') {
+    genSysLog();
+  } else if (action === 'QUOTE') {
+    genQuote();
+  } else if (action === 'INV') {
+    genInvLog();
+  } else if (action === 'WARN') {
+    genWarnLog();
+  } else if (action === 'DEBUG') {
+    genDebugTip();
+  }
+
+  // 偶尔触发一个完整订单（5%）
+  if (Math.random() < 0.04) {
+    setTimeout(() => genOrderFlow(), rand(200, 800));
+  }
+
+  // 随机节奏: 40ms ~ 1800ms
+  const delay = rand(40, 1800);
+  setTimeout(scheduleNext, delay);
+}
+
+// 启动：先刷欢迎信息，再进入自动循环
+function boot() {
+  const bootLines = [
+    ['INFO', 'BL-WHLS',  '正在启动 摆烂批发机 v4.0.7 ...'],
+    ['INFO', 'BOOT',     '[OK] 内核加载完成'],
+    ['INFO', 'BOOT',     '[OK] 摸鱼引擎初始化'],
+    ['INFO', 'BOOT',     '[OK] 语录库挂载 (7 大品类, 90+ 语录)'],
+    ['INFO', 'BOOT',     '[OK] 订单流水线就绪'],
+    ['INFO', 'BOOT',     '[OK] 摆烂指数校准: 97.3%'],
+    ['INFO', 'BOOT',     '[OK] 系统进入正常运行态'],
+    ['INFO', 'BL-WHLS',  '后台自动运行中 — 你可以看着它跑, 或输入 help 插手'],
+    ['INFO', 'BL-WHLS',  '------------------------------------------'],
+  ];
+  bootLines.forEach(([lvl, mod, msg], i) => {
+    setTimeout(() => printLine(lvl, mod, msg), i * 120);
+  });
+
+  // 启动后立即进入自动循环
+  setTimeout(scheduleNext, bootLines.length * 120 + 200);
+  // 状态条定时刷新
+  setInterval(updateStatus, 1500);
+}
+
+
+/* ------- 6. 用户命令处理 ------- */
+
+const COMMANDS = {
+  help() {
+    printLine('INFO', 'BL-WHLS', '可用命令:');
+    printLine('INFO', 'BL-WHLS', '  help              显示本帮助');
+    printLine('INFO', 'BL-WHLS', '  order [品类] [N]  触发批发订单 (例: order 摸鱼理由 5)');
+    printLine('INFO', 'BL-WHLS', '  status            系统运行状态');
+    printLine('INFO', 'BL-WHLS', '  inventory         各品类库存概况');
+    printLine('INFO', 'BL-WHLS', '  list              查看所有批发品类');
+    printLine('INFO', 'BL-WHLS', '  stop              暂停自动输出');
+    printLine('INFO', 'BL-WHLS', '  start             恢复自动输出');
+    printLine('INFO', 'BL-WHLS', '  clear             清屏');
+    printLine('INFO', 'BL-WHLS', '  （啥也不输也行，它自己会跑）');
+  },
+  list() {
+    printLine('INFO', 'BL-WHLS', '批发品类一览:');
+    CATEGORY_NAMES.forEach((c, i) => {
+      printLine('INFO', 'BL-WHLS', `  [${pad(i + 1)}] ${c} — ${PRODUCT_LINES[c].length} 条语录`);
+    });
+  },
+  inventory() {
+    printLine('INFO', 'INV-MGR', '===== 库存概况 =====');
+    CATEGORY_NAMES.forEach(c => {
+      const num = rand(800, 9999);
+      printLine('INFO', 'INV-MGR', `  ${c}: 在库 ${num}`);
+    });
+    printLine('INFO', 'INV-MGR', `  总计: 在库 ${rand(8000, 20000)} 件，全部安全（根本没人拿货）`);
+  },
+  status() {
+    printLine('INFO', 'BL-WHLS', '===== 系统状态 =====');
+    printLine('INFO', 'BL-WHLS', `  运行时长:   ${fmtUptime()}`);
+    printLine('INFO', 'BL-WHLS', `  摆烂指数:   ${fmtBLIndex()}`);
+    printLine('INFO', 'BL-WHLS', `  今日已批发: ${shippedCount} 条`);
+    printLine('INFO', 'BL-WHLS', `  当前订单号: #${orderCounter}`);
+    printLine('INFO', 'BL-WHLS', `  自动输出:   ${autoRun ? '运行中 ✓' : '已暂停 ✗'}`);
+    printLine('INFO', 'BL-WHLS', `  所有模块:   摸鱼中`);
+  },
+  order(args) {
+    const cat = args[0] || '';
+    const n = parseInt(args[1]) || rand(3, 8);
+    // 触发一次订单流水线
+    printLine('ORDER', 'ORDER-SYS', '收到人工下单请求');
+    printLine('ORDER', 'ORDER-SYS', `品类: ${cat || '随机'} × 数量: ${n}`);
+    orderCounter++;
+    setTimeout(() => runManualOrder(cat, n), 200);
+  },
+  stop() {
+    autoRun = false;
+    printLine('WARN', 'BL-WHLS', '自动输出已暂停（输入 start 恢复）');
+  },
+  start() {
+    if (!autoRun) {
+      autoRun = true;
+      printLine('INFO', 'BL-WHLS', '自动输出已恢复');
+      scheduleNext();
+    } else {
+      printLine('INFO', 'BL-WHLS', '已经在跑了别催');
+    }
+  },
+  clear() {
+    screen.innerHTML = '';
+    printLine('INFO', 'BL-WHLS', '屏幕已清空，继续运行中...');
+  },
+};
+
+// 人工订单的处理（简化版流水线）
+function runManualOrder(cat, n) {
+  const id = ++orderCounter;
+  const cats = cat ? [cat] : [pick(CATEGORY_NAMES)];
+  const theCat = cats[0];
+
+  printLine('ORDER', 'DISPATCH', `人工订单 → 批发流水线`);
+  printLine('INFO',  'FACTORY',  `启动: ${theCat} × ${n}`);
+
+  let delay = 0;
+  for (let i = 1; i <= n; i++) {
+    const text = pick(PRODUCT_LINES[theCat]);
+    setTimeout(() => {
+      printLine('ORDER', 'FACTORY', `${theCat} #${i}/${n} 完工 — "${text}"`);
+      shippedCount++;
+    }, delay);
+    delay += rand(80, 200);
+  }
+  setTimeout(() => {
+    printLine('INFO', 'QC',      `质检完成，全部合格`);
+    printLine('INFO', 'SHIPPER', `人工订单 已发货，送到你手里了 ✓`);
+  }, delay + 100);
+}
+
+// 命令解析
+cmdInput.addEventListener('keydown', e => {
+  if (e.key === 'Enter') {
+    const raw = cmdInput.value.trim();
+    printCmd(raw);
+    cmdInput.value = '';
+
+    if (!raw) return;
+
+    const parts = raw.split(/\s+/);
+    const cmd = parts[0].toLowerCase();
+    const args = parts.slice(1);
+
+    if (COMMANDS[cmd]) {
+      COMMANDS[cmd](args);
+    } else {
+      // 摆烂风的 command not found
+      const tips = [
+        `command not found: ${cmd} — 你是不是也在摸鱼？`,
+        `command not found: ${cmd} — 输入 help 看看有什么命令`,
+        `command not found: ${cmd} — 建议先躺平一下再来`,
+        `command not found: ${cmd} — 系统正在摸鱼，识别不出来`,
+      ];
+      printLine('ERROR', 'BL-WHLS', pick(tips));
+    }
+  }
+});
+
+// 点击终端时聚焦输入框
+document.querySelector('.terminal').addEventListener('click', () => {
+  cmdInput.focus();
+});
+
+
+/* ------- 7. 启动 ------- */
+boot();
+</script>
+</body>
+</html>
